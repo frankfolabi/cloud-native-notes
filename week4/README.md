@@ -10,12 +10,11 @@ Working with ConfigMaps, Secrets and PersistentVolume.
 
 
 ## Week 4 - Tasks
-
 - Build and load `cloud-native-notes:3.0` to the cluster
     -  You can use the `build-and-load.sh` script to automate it
 - Create the Kubernetes objects using the manifest files in `k8s/` such as the: namespace, configmap, secret, redis deployment and backend deployment.
 - Check the details of the Kubernetes objects created. -*See solution guide*
-- Confirm that backend authenticates with redis. 
+- Confirm that backend authenticates with redis. The app gracfully handles the connection.
 - Port-Forward the backend service to port 3000
 - Try to POST several content to the backend from another terminal
     - Post the 4 messages from last week's tasks and the 2 for this week 
@@ -25,15 +24,18 @@ Working with ConfigMaps, Secrets and PersistentVolume.
     - If you can find your previous notes, then your storage and secret worked with the backend application. 
 
 ## Extra Challenges
-- The secret used was in plaintext which is not secure. 
+- Currently the app can only store 100 notes. Can you increase it to 10000?
+- Two secrets were configured. Which of them is been used in the cluster?
+- The secret used was in plaintext. This is a security concern. 
     - Is there a better way to handle the secret? 
     - Can you implement it?
-
 - What error did you encountered? How did you solve it?
 
 ## To Think About
 - How was the backend and redis deployments able to communicate with each other?
 - How was storage provisioned?
+- What is the usefulness of the liveness and readiness probe in the redis deployment?
+
 
 ## Solution Guide
 
