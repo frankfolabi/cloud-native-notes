@@ -1,0 +1,226 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-html
+  namespace: cloud-native-notes
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Cloud Native Notes</title>
+      <style>
+        body {
+          font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+          max-width: 720px;
+          margin: 2rem auto;
+          padding: 0 1rem;
+          color: #222;
+        }
+        h1 { margin-bottom: 0.25rem; }
+        .subtitle { color: #666; margin-top: 0; }
+        form {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          padding: 1rem;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          background: #fafafa;
+          margin-bottom: 1.5rem;
+        }
+        input, textarea {
+          font: inherit;
+          padding: 0.5rem;
+          border: 1px solid #ccc;
+          border-radius: 6px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        textarea { min-height: 80px; resize: vertical; }
+        button {
+          padding: 0.4rem 0.9rem;
+          border: 0;
+          border-radius: 6px;
+          background: #2563eb;
+          color: white;
+          font: inherit;
+          cursor: pointer;
+        }
+        button:disabled { background: #93c5fd; cursor: not-allowed; }
+        button.secondary { background: #6b7280; }
+        button.danger    { background: #dc2626; }
+        .note {
+          padding: 0.75rem 1rem;
+          border: 1px solid #eee;
+          border-radius: 8px;
+          margin-bottom: 0.5rem;
+          background: white;
+        }
+        .note h3 { margin: 0 0 0.25rem; }
+        .note small { color: #888; display: block; margin-bottom: 0.5rem; }
+        .note .actions { display: flex; gap: 0.5rem; }
+        .note .actions button { padding: 0.25rem 0.6rem; font-size: 0.85rem; }
+        .status { min-height: 1.25rem; font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .status.error { color: #b91c1c; }
+        .status.ok    { color: #15803d; }
+      </style>
+    </head>
+    <body>
+      <h1>📝 Cloud Native Notes</h1>
+      <p class="subtitle">HandsOn Academy Bootcamp</p>
+
+      <form id="note-form">
+        <input  id="title"   name="title"   placeholder="Title" required maxlength="120" />
+        <textarea id="content" name="content" placeholder="Write your note..." required></textarea>
+        <button id="submit-btn" type="submit">Add Note</button>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+      </form>
+
+      <h2>Your Notes</h2>
+      <div id="notes">Loading…</div>
+
+      <script>
+        const API_BASE = "/api/notes";
+        const notesEl  = document.getElementById("notes");
+        const formEl   = document.getElementById("note-form");
+        const titleEl  = document.getElementById("title");
+        const contentEl= document.getElementById("content");
+        const btnEl    = document.getElementById("submit-btn");
+        const statusEl = document.getElementById("status");
+
+        function setStatus(msg, kind) {
+          statusEl.textContent = msg || "";
+          statusEl.className = "status" + (kind ? " " + kind : "");
+        }
+
+        function escapeHtml(s) {
+          return String(s).replace(/[&<>"']/g, c => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+          }[c]));
+        }
+
+        async function loadNotes() {
+          notesEl.textContent = "Loading…";
+          try {
+            const res = await fetch(API_BASE, { headers: { Accept: "application/json" } });
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            if (!data.length) {
+              notesEl.innerHTML = "<p><em>No notes yet. Add one above!</em></p>";
+              return;
+            }
+            notesEl.innerHTML = data.map(n => `
+              <div class="note" data-id="${escapeHtml(n.id)}">
+                <h3>${escapeHtml(n.title)}</h3>
+                <p>${escapeHtml(n.content)}</p>
+                <small>id: ${escapeHtml(n.id)} · created: ${escapeHtml(n.created_at)} · updated: ${escapeHtml(n.updated_at)}</small>
+                <div class="actions">
+                  <button class="secondary" data-action="edit"   data-id="${escapeHtml(n.id)}">Edit</button>
+                  <button class="danger"    data-action="delete" data-id="${escapeHtml(n.id)}">Delete</button>
+                </div>
+              </div>
+            `).join("");
+          } catch (err) {
+            notesEl.innerHTML = "";
+            setStatus("Failed to load notes: " + err.message, "error");
+          }
+        }
+
+        // --- Create ---
+        formEl.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          btnEl.disabled = true;
+          setStatus("Saving…");
+
+          const payload = {
+            title:   titleEl.value.trim(),
+            content: contentEl.value.trim(),
+          };
+
+          try {
+            const res = await fetch(API_BASE, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Accept": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (!res.ok) throw new Error("HTTP " + res.status + " – " + (await res.text()));
+            formEl.reset();
+            setStatus("Note saved ✅", "ok");
+            await loadNotes();
+          } catch (err) {
+            setStatus("Failed to save note: " + err.message, "error");
+          } finally {
+            btnEl.disabled = false;
+          }
+        });
+
+        // --- Edit + Delete (event delegation) ---
+        notesEl.addEventListener("click", async (e) => {
+          const btn = e.target.closest("button[data-action]");
+          if (!btn) return;
+
+          const action = btn.dataset.action;
+          const id     = btn.dataset.id;
+
+          if (action === "delete") {
+            if (!confirm("Delete this note?")) return;
+            btn.disabled = true;
+            setStatus("Deleting…");
+            try {
+              const res = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
+                method: "DELETE",
+              });
+              if (!res.ok) throw new Error("HTTP " + res.status + " – " + (await res.text()));
+              setStatus("Note deleted 🗑️", "ok");
+              await loadNotes();
+            } catch (err) {
+              setStatus("Failed to delete note: " + err.message, "error");
+              btn.disabled = false;
+            }
+            return;
+          }
+
+          if (action === "edit") {
+            const card    = btn.closest(".note");
+            const h3      = card.querySelector("h3");
+            const p       = card.querySelector("p");
+
+            const newTitle   = prompt("New title:", h3.textContent);
+            if (newTitle === null) return;              // user cancelled
+            const newContent = prompt("New content:", p.textContent);
+            if (newContent === null) return;
+
+            const payload = {};
+            if (newTitle.trim())   payload.title   = newTitle.trim();
+            if (newContent.trim()) payload.content = newContent.trim();
+
+            if (Object.keys(payload).length === 0) {
+              setStatus("Nothing to update.", "error");
+              return;
+            }
+
+            btn.disabled = true;
+            setStatus("Updating…");
+            try {
+              const res = await fetch(`${API_BASE}/${encodeURIComponent(id)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              if (!res.ok) throw new Error("HTTP " + res.status + " – " + (await res.text()));
+              setStatus("Note updated ✏️", "ok");
+              await loadNotes();
+            } catch (err) {
+              setStatus("Failed to update note: " + err.message, "error");
+              btn.disabled = false;
+            }
+          }
+        });
+
+        loadNotes();
+      </script>
+    </body>
+    </html>

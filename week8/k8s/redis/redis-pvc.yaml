@@ -1,0 +1,17 @@
+# ============================================
+# PersistentVolumeClaim for Redis
+# Data survives pod restarts and deletions
+# ============================================
+
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: cloud-native-notes
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
